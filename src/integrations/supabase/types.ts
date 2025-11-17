@@ -14,7 +14,319 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      boards: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      calendar_days: {
+        Row: {
+          absence_attachment_url: string | null
+          absence_note: string | null
+          absence_type: Database["public"]["Enums"]["absence_type"] | null
+          completed_planned_tasks: boolean | null
+          created_at: string | null
+          date: string
+          id: string
+          updated_at: string | null
+          user_id: string
+          went_to_college: boolean | null
+        }
+        Insert: {
+          absence_attachment_url?: string | null
+          absence_note?: string | null
+          absence_type?: Database["public"]["Enums"]["absence_type"] | null
+          completed_planned_tasks?: boolean | null
+          created_at?: string | null
+          date: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+          went_to_college?: boolean | null
+        }
+        Update: {
+          absence_attachment_url?: string | null
+          absence_note?: string | null
+          absence_type?: Database["public"]["Enums"]["absence_type"] | null
+          completed_planned_tasks?: boolean | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+          went_to_college?: boolean | null
+        }
+        Relationships: []
+      }
+      cards: {
+        Row: {
+          attachments: string[] | null
+          created_at: string | null
+          description: string | null
+          due_date: string | null
+          estimate_hours: number | null
+          id: string
+          labels: string[] | null
+          list_id: string
+          position: number
+          priority: Database["public"]["Enums"]["priority_level"] | null
+          sprint_id: string | null
+          start_date: string | null
+          status: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          attachments?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimate_hours?: number | null
+          id?: string
+          labels?: string[] | null
+          list_id: string
+          position?: number
+          priority?: Database["public"]["Enums"]["priority_level"] | null
+          sprint_id?: string | null
+          start_date?: string | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          attachments?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          due_date?: string | null
+          estimate_hours?: number | null
+          id?: string
+          labels?: string[] | null
+          list_id?: string
+          position?: number
+          priority?: Database["public"]["Enums"]["priority_level"] | null
+          sprint_id?: string | null
+          start_date?: string | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cards_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cards_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lists: {
+        Row: {
+          board_id: string
+          created_at: string | null
+          id: string
+          name: string
+          position: number
+          updated_at: string | null
+        }
+        Insert: {
+          board_id: string
+          created_at?: string | null
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string | null
+        }
+        Update: {
+          board_id?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lists_board_id_fkey"
+            columns: ["board_id"]
+            isOneToOne: false
+            referencedRelation: "boards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planned_tasks: {
+        Row: {
+          calendar_day_id: string
+          card_id: string
+          completed: boolean | null
+          created_at: string | null
+          id: string
+        }
+        Insert: {
+          calendar_day_id: string
+          card_id: string
+          completed?: boolean | null
+          created_at?: string | null
+          id?: string
+        }
+        Update: {
+          calendar_day_id?: string
+          card_id?: string
+          completed?: boolean | null
+          created_at?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planned_tasks_calendar_day_id_fkey"
+            columns: ["calendar_day_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_days"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planned_tasks_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          email: string | null
+          id: string
+          timezone: string | null
+          updated_at: string | null
+          workday_end: string | null
+          workday_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          email?: string | null
+          id: string
+          timezone?: string | null
+          updated_at?: string | null
+          workday_end?: string | null
+          workday_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          email?: string | null
+          id?: string
+          timezone?: string | null
+          updated_at?: string | null
+          workday_end?: string | null
+          workday_start?: string | null
+        }
+        Relationships: []
+      }
+      sprints: {
+        Row: {
+          created_at: string | null
+          end_date: string
+          goal: string | null
+          id: string
+          name: string
+          start_date: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_date: string
+          goal?: string | null
+          id?: string
+          name: string
+          start_date: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          end_date?: string
+          goal?: string | null
+          id?: string
+          name?: string
+          start_date?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subtasks: {
+        Row: {
+          card_id: string
+          created_at: string | null
+          done: boolean | null
+          estimate_hours: number | null
+          id: string
+          position: number
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          card_id: string
+          created_at?: string | null
+          done?: boolean | null
+          estimate_hours?: number | null
+          id?: string
+          position?: number
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          card_id?: string
+          created_at?: string | null
+          done?: boolean | null
+          estimate_hours?: number | null
+          id?: string
+          position?: number
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_card_id_fkey"
+            columns: ["card_id"]
+            isOneToOne: false
+            referencedRelation: "cards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +335,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      absence_type: "personal" | "sick" | "permission"
+      priority_level: "P0" | "P1" | "P2" | "P3"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +463,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      absence_type: ["personal", "sick", "permission"],
+      priority_level: ["P0", "P1", "P2", "P3"],
+    },
   },
 } as const

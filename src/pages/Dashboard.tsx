@@ -1,263 +1,346 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Plus, Zap, Target, TrendingUp } from 'lucide-react';
+import { Plus, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { LifeScoreCard } from '@/components/dashboard/LifeScoreCard';
-import { TaskCard } from '@/components/tasks/TaskCard';
-import { HabitTracker } from '@/components/habits/HabitTracker';
-import { AddTaskDialog } from '@/components/dialogs/AddTaskDialog';
-import { AddHabitDialog } from '@/components/dialogs/AddHabitDialog';
-import { useTasks } from '@/hooks/useTasks';
-import { useHabits } from '@/hooks/useHabits';
-import { useHubs } from '@/hooks/useHubs';
+import { useBoards, useLists, useCards } from '@/hooks/useBoards';
+import { useAttendance } from '@/hooks/useAttendance';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-
-// Life score calculation
-const calculateLifeScore = (tasks: any[], habits: any[]) => {
-  if (tasks.length === 0 && habits.length === 0) return { 
-    score: 0, 
-    trend: 'up' as const,
-    breakdown: { tasks: 0, habits: 0, events: 0, mood: 75 } 
-  };
-  
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const taskScore = tasks.length > 0 ? (completedTasks / tasks.length) * 100 : 0;
-  
-  const completedHabits = habits.filter(h => h.completed_today).length;
-  const habitScore = habits.length > 0 ? (completedHabits / habits.length) * 100 : 0;
-  
-  const overallScore = Math.round((taskScore * 0.4) + (habitScore * 0.3) + (80 * 0.15) + (75 * 0.15));
-  
-  return {
-    score: overallScore,
-    trend: 'up' as const,
-    breakdown: {
-      tasks: Math.round(taskScore),
-      habits: Math.round(habitScore),
-      events: 80,
-      mood: 75,
-    }
-  };
-};
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const { tasks, loading: tasksLoading, toggleTaskComplete } = useTasks();
-  const { habits, loading: habitsLoading, toggleHabitComplete } = useHabits();
-  const { hubs, loading: hubsLoading } = useHubs();
-  const [totalCredits, setTotalCredits] = useState(0);
+  const { boards, createBoard, loading: boardsLoading } = useBoards();
+  const [selectedBoard, setSelectedBoard] = useState<string | undefined>();
+  const { lists, loading: listsLoading } = useLists(selectedBoard);
+  const { calendarDays, markTasksCompleted, updateAttendance } = useAttendance();
 
-  // Calculate total credits
+  // Select first board by default
   useEffect(() => {
-    const fetchCredits = async () => {
-      if (!user) return;
-      
-      const { data } = await supabase
-        .from('credits_transactions')
-        .select('amount')
-        .eq('owner', user.id);
-      
-      const total = data?.reduce((sum, transaction) => sum + transaction.amount, 0) || 0;
-      setTotalCredits(total);
-    };
+    if (boards.length > 0 && !selectedBoard) {
+      setSelectedBoard(boards[0].id);
+    }
+  }, [boards, selectedBoard]);
 
-    fetchCredits();
-  }, [user]);
-
-  // Initialize user with default hubs if they have none
+  // Create a default board if none exist
   useEffect(() => {
-    const initializeUser = async () => {
-      if (!user || hubsLoading || hubs.length > 0) return;
-
-      const defaultHubs = [
-        { title: 'Academics', slug: 'academics', color: '#7C3AED', icon: 'book' },
-        { title: 'Tech', slug: 'tech', color: '#06B6D4', icon: 'terminal' },
-        { title: 'Fitness', slug: 'fitness', color: '#10B981', icon: 'dumbbell' },
-        { title: 'Relationships', slug: 'relationships', color: '#F472B6', icon: 'heart' },
-        { title: 'Personal', slug: 'personal', color: '#F59E0B', icon: 'user' }
-      ];
-
-      // Create default hubs for new users
-      await Promise.all(
-        defaultHubs.map(hub =>
-          supabase.from('hubs').insert([{ ...hub, owner: user.id }])
-        )
-      );
-
-      // Refresh hubs
-      window.location.reload();
+    const initBoard = async () => {
+      if (!boardsLoading && boards.length === 0 && user) {
+        await createBoard('Personal Board');
+      }
     };
+    initBoard();
+  }, [boards, boardsLoading, user]);
 
-    initializeUser();
-  }, [user, hubs, hubsLoading]);
+  const todaysDate = new Date().toISOString().split('T')[0];
+  const todayAttendance = calendarDays.find((d) => d.date === todaysDate);
 
-  const lifeScore = calculateLifeScore(tasks, habits);
-  const todaysDate = new Date().toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
-
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const totalTasks = tasks.length;
-  const currentStreak = Math.max(...habits.map(h => h.streak), 0);
-
-  if (tasksLoading || habitsLoading || hubsLoading) {
+  if (boardsLoading || listsLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="h-full flex flex-col gap-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gradient">Welcome back! 👋</h1>
-          <p className="text-muted-foreground mt-1">{todaysDate}</p>
+          <h1 className="text-3xl font-bold">Welcome back!</h1>
+          <p className="text-muted-foreground">
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
         </div>
-        <AddTaskDialog />
+
+        <CreateBoardDialog onCreateBoard={createBoard} />
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="glass">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Credits</p>
-                <p className="text-2xl font-bold">{totalCredits}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                <Target className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Tasks Done</p>
-                <p className="text-2xl font-bold">{completedTasks}/{totalTasks}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-warning" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Streak</p>
-                <p className="text-2xl font-bold">{currentStreak} days</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <LifeScoreCard {...lifeScore} />
-      </div>
-
-      {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Today's Tasks */}
-        <div className="lg:col-span-2 space-y-4">
+      {/* Today's Attendance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Today's Check-in
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Today's Focus</h2>
-            <Badge variant="secondary" className="text-xs">
-              {tasks.filter(t => t.status !== 'done').length} remaining
-            </Badge>
-          </div>
-          
-          {tasks.length === 0 ? (
-            <Card className="glass p-6 text-center">
-              <p className="text-muted-foreground mb-4">No tasks yet. Create your first task!</p>
-              <AddTaskDialog />
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {tasks.slice(0, 5).map((task) => (
-                <TaskCard 
-                  key={task.id} 
-                  task={{
-                    ...task,
-                    status: task.status as 'todo' | 'doing' | 'done',
-                    priority: task.priority as 1 | 2 | 3,
-                    dueAt: task.due_at
-                  }} 
-                  onToggleComplete={toggleTaskComplete}
-                />
-              ))}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="completed-tasks"
+                checked={todayAttendance?.completed_planned_tasks || false}
+                onCheckedChange={(checked) => {
+                  markTasksCompleted(todaysDate, checked as boolean);
+                }}
+              />
+              <Label htmlFor="completed-tasks" className="cursor-pointer">
+                Completed my planned tasks
+              </Label>
             </div>
-          )}
-
-          {tasks.length > 5 && (
-            <Button variant="outline" className="w-full">
-              View all tasks
-            </Button>
-          )}
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-6">
-          {/* Habits */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Daily Habits</h2>
-              <AddHabitDialog />
-            </div>
-            
-            {habits.filter(h => h.cadence === 'daily').length === 0 ? (
-              <Card className="glass p-4 text-center">
-                <p className="text-sm text-muted-foreground mb-3">No habits yet</p>
-                <AddHabitDialog />
-              </Card>
-            ) : (
-              <div className="space-y-3">
-                {habits.filter(h => h.cadence === 'daily').map((habit) => (
-                  <HabitTracker 
-                    key={habit.id} 
-                    habit={{
-                      ...habit,
-                      cadence: habit.cadence as 'daily' | 'weekly',
-                      completedToday: habit.completed_today
-                    }} 
-                    onToggleComplete={toggleHabitComplete}
-                  />
-                ))}
-              </div>
+            {todayAttendance?.completed_planned_tasks && (
+              <Badge variant="default">✨ Great job!</Badge>
             )}
           </div>
 
-          {/* Today's Schedule */}
-          <Card className="glass">
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Today's Schedule
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No events scheduled for today
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="went-to-college"
+                checked={todayAttendance?.went_to_college !== false}
+                onCheckedChange={(checked) => {
+                  const wentToCollege = checked as boolean;
+                  updateAttendance(todaysDate, {
+                    went_to_college: wentToCollege,
+                    absence_type: wentToCollege ? null : undefined,
+                  });
+                }}
+              />
+              <Label htmlFor="went-to-college" className="cursor-pointer">
+                Went to college
+              </Label>
+            </div>
+            {todayAttendance?.went_to_college === false && (
+              <Badge variant="outline">Absent</Badge>
+            )}
+          </div>
+
+          {todayAttendance?.went_to_college === false && (
+            <div className="pl-8 space-y-2 border-l-2 border-muted">
+              <Select
+                value={todayAttendance.absence_type || undefined}
+                onValueChange={(value) => {
+                  updateAttendance(todaysDate, {
+                    absence_type: value as 'personal' | 'sick' | 'permission',
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select absence type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="personal">Personal</SelectItem>
+                  <SelectItem value="sick">Sick</SelectItem>
+                  <SelectItem value="permission">Permission</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                placeholder="Optional note..."
+                value={todayAttendance.absence_note || ''}
+                onChange={(e) => {
+                  updateAttendance(todaysDate, {
+                    absence_note: e.target.value,
+                  });
+                }}
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Board View */}
+      {boards.length > 0 && (
+        <div className="flex-1 overflow-auto">
+          <div className="flex gap-2 mb-4">
+            {boards.map((board) => (
+              <Button
+                key={board.id}
+                variant={selectedBoard === board.id ? 'default' : 'outline'}
+                onClick={() => setSelectedBoard(board.id)}
+              >
+                {board.name}
+              </Button>
+            ))}
+          </div>
+
+          {/* Kanban Lists */}
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {lists.map((list) => (
+              <ListColumn key={list.id} list={list} />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {boards.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <p className="text-muted-foreground mb-4">No boards yet</p>
+            <CreateBoardDialog onCreateBoard={createBoard} />
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function CreateBoardDialog({ onCreateBoard }: { onCreateBoard: (name: string) => Promise<any> }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState('');
+
+  const handleCreate = async () => {
+    if (name.trim()) {
+      await onCreateBoard(name.trim());
+      setName('');
+      setOpen(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="h-4 w-4 mr-2" />
+          New Board
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create New Board</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="board-name">Board Name</Label>
+            <Input
+              id="board-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g., Work Projects"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreate();
+              }}
+            />
+          </div>
+          <Button onClick={handleCreate} className="w-full">
+            Create Board
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ListColumn({ list }: { list: any }) {
+  const { cards, createCard, toggleCardComplete } = useCards(list.id);
+  const [showAddCard, setShowAddCard] = useState(false);
+  const [newCardTitle, setNewCardTitle] = useState('');
+
+  const handleAddCard = async () => {
+    if (newCardTitle.trim()) {
+      await createCard({
+        title: newCardTitle.trim(),
+        status: 'todo',
+        priority: 'P2',
+        labels: [],
+        attachments: [],
+        position: cards.length,
+      });
+      setNewCardTitle('');
+      setShowAddCard(false);
+    }
+  };
+
+  return (
+    <div className="min-w-[280px] max-w-[280px]">
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">{list.name}</CardTitle>
+            <Badge variant="secondary">{cards.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {cards.map((card) => (
+            <Card key={card.id} className="cursor-pointer hover:shadow-md transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    checked={card.status === 'done'}
+                    onCheckedChange={() => toggleCardComplete(card.id)}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${card.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                      {card.title}
+                    </p>
+                    {card.description && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                        {card.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge variant="outline" className="text-xs">
+                        {card.priority}
+                      </Badge>
+                      {card.due_date && (
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(card.due_date).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
+          {showAddCard ? (
+            <div className="space-y-2">
+              <Textarea
+                placeholder="Task title..."
+                value={newCardTitle}
+                onChange={(e) => setNewCardTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleAddCard();
+                  }
+                  if (e.key === 'Escape') {
+                    setShowAddCard(false);
+                    setNewCardTitle('');
+                  }
+                }}
+                className="min-h-[60px]"
+              />
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleAddCard}>
+                  Add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowAddCard(false);
+                    setNewCardTitle('');
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setShowAddCard(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Card
+            </Button>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
